@@ -28,8 +28,8 @@ let audioSettings = {
 
 // ===== VARIÁVEIS DE FÍSICA E JOGO =====
 let vY = 0;
-const GRAVITY = -0.025;
-const JUMP_FORCE = 3;
+const GRAVITY = -0.050;
+const JUMP_FORCE = 0.7;
 const AIR_CONTROL = 1.5;
 const PLAYER_EYE = 3.0;
 
@@ -59,6 +59,7 @@ const playerMaxHP = 100;
 
 // ===== SISTEMA DE CANHÕES =====
 let placedCannons = [];
+const MAX_CANNONS = 20; // Limite máximo de canhões que podem ser colocados
 let buildMode = false;
 let removeMode = false;
 let ghostCannon = null;
@@ -82,6 +83,22 @@ const cannonTypes = [
 ];
 
 let selectedCannonForMenu = null;
+
+// ===== CONFIGURAÇÃO DOS RAIOS =====
+const LIGHTNING_DESTROY_CHANCE = 0.15; // 15% de chance de destruir um canhão
+
+async function loadCannonData() {
+    const response = await fetch("cannons.json");
+    const cannons = await response.json();
+    cannonTypes.length = 0;
+    cannons.forEach(c => {
+        c.color = parseInt(c.color.replace('#', '0x'));
+        c.projectile.color = parseInt(c.projectile.color.replace('#', '0x'));
+        c.projectile.glowColor = parseInt(c.projectile.glowColor.replace('#', '0x'));
+        c.projectile.trailColor = parseInt(c.projectile.trailColor.replace('#', '0x'));
+        cannonTypes.push(c);
+    });
+}
 
 // ===== CARREGAR MONSTROS =====
 async function loadMonsterData() {
@@ -265,6 +282,7 @@ function setupSettingsMenu() {
 // ===== INICIALIZAÇÃO =====
 
 async function init() {
+    await loadCannonData();
     await loadMonsterData();
 
     scene = new THREE.Scene();
@@ -424,8 +442,23 @@ function startNewGame() {
     lighthouseHP = lighthouseMaxHP;
     playerHP = playerMaxHP;
     lastHealWave = 0;
+    
+    // CORRIGIDO: Remover inimigos da cena antes de limpar o array
+    enemies.forEach(enemy => {
+        if (enemy && enemy.parent) {
+            scene.remove(enemy);
+        }
+    });
     enemies = [];
+    
+    // CORRIGIDO: Remover projéteis da cena antes de limpar o array
+    projectiles.forEach(projectile => {
+        if (projectile && projectile.parent) {
+            scene.remove(projectile);
+        }
+    });
     projectiles = [];
+    
     placedCannons.forEach(cannon => scene.remove(cannon));
     placedCannons = [];
     gameActive = true;
@@ -448,6 +481,26 @@ function returnToMenu() {
     
     gameActive = false;
     gameStarted = false;
+    
+    // CORRIGIDO: Remover inimigos da cena
+    enemies.forEach(enemy => {
+        if (enemy && enemy.parent) {
+            scene.remove(enemy);
+        }
+    });
+    enemies = [];
+    
+    // CORRIGIDO: Remover projéteis da cena
+    projectiles.forEach(projectile => {
+        if (projectile && projectile.parent) {
+            scene.remove(projectile);
+        }
+    });
+    projectiles = [];
+    
+    // Remover canhões da cena
+    placedCannons.forEach(cannon => scene.remove(cannon));
+    placedCannons = [];
     
     if (ambientMusic && ambientMusic.isPlaying) ambientMusic.stop();
     if (rainSound && rainSound.isPlaying) rainSound.stop();
@@ -512,7 +565,7 @@ function createIsland() {
     ];
 
     palmPositions.forEach(pos => {
-        createPalmTree(pos.x, 0, pos.z);
+        createPalmTree(pos.x, -7.5, pos.z);
     });
 }
 
@@ -924,6 +977,9 @@ function createLightningBolt(fromPos, toPos) {
     setTimeout(() => { lightningLight.intensity = 10; }, 80);
     setTimeout(() => { lightningLight.intensity = 0; }, 200);
     
+    // ===== VERIFICAR SE DESTRÓI CANHÕES =====
+    checkLightningCannonDamage(endPoint);
+    
     // Raio dura mais tempo
     setTimeout(() => { 
         if (currentBolt === boltGroup) { 
@@ -931,6 +987,78 @@ function createLightningBolt(fromPos, toPos) {
             currentBolt = null; 
         } 
     }, 300 + Math.random() * 200);
+}
+
+// ===== SISTEMA DE DANO DE RAIOS AOS CANHÕES =====
+function checkLightningCannonDamage(lightningEndPoint) {
+    const destroyRadius = 8; // Raio de destruição ao redor do raio
+    
+    placedCannons.forEach((cannon, index) => {
+        const dx = cannon.position.x - lightningEndPoint.x;
+        const dz = cannon.position.z - lightningEndPoint.z;
+        const distance = Math.sqrt(dx * dx + dz * dz);
+        
+        // Se o canhão está perto o suficiente do raio
+        if (distance < destroyRadius) {
+            // Chance de destruição baseada na distância (mais perto = maior chance)
+            const distanceFactor = 1 - (distance / destroyRadius);
+            const destroyChance = LIGHTNING_DESTROY_CHANCE * distanceFactor;
+            
+            if (Math.random() < destroyChance) {
+                // DESTRUIR CANHÃO!
+                destroyCannonByLightning(cannon, index);
+            }
+        }
+    });
+}
+
+function destroyCannonByLightning(cannon, index) {
+    const type = cannonTypes[cannon.userData.type];
+    
+    // Efeito visual de explosão
+    createCannonExplosionEffect(cannon.position);
+    
+    // Remover canhão da cena
+    scene.remove(cannon);
+    placedCannons.splice(index, 1);
+    
+    // Feedback para o jogador
+    console.log(`⚡ RAIO DESTRUIU UM ${type.name}!`);
+    
+    // Efeito sonoro (usar som de raio ou explosão)
+    playSound('lightning');
+    
+    // Atualizar UI
+    updateUI();
+}
+
+function createCannonExplosionEffect(position) {
+    const explosionGroup = new THREE.Group();
+    
+    // Partículas de explosão
+    for (let i = 0; i < 15; i++) {
+        const particleGeo = new THREE.SphereGeometry(0.3 + Math.random() * 0.4, 6, 6);
+        const particleMat = new THREE.MeshBasicMaterial({ 
+            color: Math.random() > 0.5 ? 0xffff00 : 0xff8800 
+        });
+        const particle = new THREE.Mesh(particleGeo, particleMat);
+        
+        // Posição aleatória ao redor do canhão
+        particle.position.set(
+            position.x + (Math.random() - 0.5) * 3,
+            position.y + Math.random() * 2,
+            position.z + (Math.random() - 0.5) * 3
+        );
+        
+        explosionGroup.add(particle);
+    }
+    
+    scene.add(explosionGroup);
+    
+    // Remover após 1 segundo
+    setTimeout(() => {
+        scene.remove(explosionGroup);
+    }, 1000);
 }
 
 // ===== FAROL (PATCH VISUAL) =====
@@ -1284,10 +1412,18 @@ function toggleBuildMode() {
     const indicator = document.getElementById('buildModeIndicator');
     if (buildMode) {
         indicator.style.display = 'block';
+        // ✅ MODO CONSTRUÇÃO VERDE
+        indicator.style.background = 'rgba(0, 255, 0, 0.15)';
+        indicator.style.borderColor = '#00ff00';
+        indicator.style.color = '#00ff00';
         indicator.innerHTML = '🔨 MODO CONSTRUÇÃO<div style="font-size: 16px; margin-top: 10px;">🖱️ Clique para colocar canhão</div>';
         document.body.style.cursor = 'crosshair';
         createGhostCannon();
     } else {
+        // ✅ Reset para padrão quando desativado
+        indicator.style.background = '';
+        indicator.style.borderColor = '';
+        indicator.style.color = '';
         indicator.style.display = 'none';
         document.body.style.cursor = 'default';
         if (ghostCannon) { scene.remove(ghostCannon); ghostCannon = null; }
@@ -1300,6 +1436,7 @@ function toggleRemoveMode() {
     removeMode = !removeMode;
     const indicator = document.getElementById('buildModeIndicator');
     if (removeMode) {
+        // ✅ MODO REMOÇÃO VERMELHO
         indicator.style.display = 'block';
         indicator.style.background = 'rgba(255, 0, 0, 0.15)';
         indicator.style.borderColor = '#ff0000';
@@ -1307,23 +1444,22 @@ function toggleRemoveMode() {
         indicator.innerHTML = '🗑️ MODO REMOÇÃO<div style="font-size: 16px; margin-top: 10px;">🖱️ Clique em um canhão para remover</div>';
         document.body.style.cursor = 'not-allowed';
     } else {
+        // ✅ Reset para padrão quando desativado
+        indicator.style.background = '';
+        indicator.style.borderColor = '';
+        indicator.style.color = '';
         indicator.style.display = 'none';
-        indicator.style.background = 'rgba(0, 255, 0, 0.15)';
-        indicator.style.borderColor = '#00ff00';
-        indicator.style.color = '#00ff00';
         document.body.style.cursor = 'default';
     }
 }
 
-function createGhostCannon() {
-    const type = cannonTypes[selectedCannonIndex];
-    const cannonGeo = new THREE.CylinderGeometry(1, 1.5, 3, 8);
-    const cannonMat = new THREE.MeshBasicMaterial({ color: type.color, transparent: true, opacity: 0.5, wireframe: true });
-    ghostCannon = new THREE.Mesh(cannonGeo, cannonMat);
-    scene.add(ghostCannon);
-}
-
 function placeCannon() {
+    // Verificar se atingiu o limite máximo de canhões
+    if (placedCannons.length >= MAX_CANNONS) {
+        console.log(`⚠️ Limite máximo de ${MAX_CANNONS} canhões atingido!`);
+        return;
+    }
+    
     const type = cannonTypes[selectedCannonIndex];
     if (gold < type.cost) return;
     const raycaster = new THREE.Raycaster();
@@ -1364,23 +1500,97 @@ function removeCannon() {
 
 function createCannon(position, typeIndex) {
     const type = cannonTypes[typeIndex];
+    const visual = type.visual;
     const cannon = new THREE.Group();
     cannon.position.copy(position);
-    cannon.position.y = 0.5;
-    const baseGeo = new THREE.CylinderGeometry(1, 1.2, 0.5, 8);
-    const baseMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.5, roughness: 0.5 });
+    cannon.position.y = visual.baseHeight / 2;
+    
+    // Base decorada
+    const baseGeo = new THREE.CylinderGeometry(visual.baseRadius, visual.baseRadius * 1.1, visual.baseHeight, 12);
+    const baseMat = new THREE.MeshStandardMaterial({ 
+        color: type.color, 
+        metalness: visual.metalness, 
+        roughness: visual.roughness,
+        emissive: type.color,
+        emissiveIntensity: visual.glowIntensity * 0.3
+    });
     const base = new THREE.Mesh(baseGeo, baseMat);
     base.castShadow = true;
     base.receiveShadow = true;
     cannon.add(base);
-    const cannonGeo = new THREE.CylinderGeometry(0.35, 0.5, 2, 8);
-    const cannonMat = new THREE.MeshStandardMaterial({ color: type.color, metalness: 0.7, roughness: 0.3 });
+    
+    // Ornamentos na base (se tiver)
+    if (visual.hasOrnaments) {
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const ornGeo = new THREE.BoxGeometry(0.15, visual.baseHeight * 0.8, 0.15);
+            const ornMat = new THREE.MeshStandardMaterial({ 
+                color: 0x333333, 
+                metalness: 0.9, 
+                roughness: 0.1 
+            });
+            const orn = new THREE.Mesh(ornGeo, ornMat);
+            orn.position.x = Math.cos(angle) * visual.baseRadius;
+            orn.position.z = Math.sin(angle) * visual.baseRadius;
+            orn.castShadow = true;
+            cannon.add(orn);
+        }
+    }
+    
+    // Cano do canhão (com ponta identificável)
+    const barrelGroup = new THREE.Group();
+    const cannonGeo = new THREE.CylinderGeometry(visual.barrelRadius, visual.barrelRadius * 0.8, visual.barrelLength, 12);
+    const cannonMat = new THREE.MeshStandardMaterial({ 
+        color: type.color, 
+        metalness: visual.metalness, 
+        roughness: visual.roughness,
+        emissive: type.color,
+        emissiveIntensity: visual.glowIntensity * 0.5
+    });
     const cannonMesh = new THREE.Mesh(cannonGeo, cannonMat);
     cannonMesh.rotation.z = Math.PI / 2;
-    cannonMesh.position.y = 0.5;
+    cannonMesh.position.x = visual.barrelLength / 2;
     cannonMesh.castShadow = true;
-    cannon.add(cannonMesh);
-    cannon.userData = { type: typeIndex, lastShot: 0, target: null, cannonMesh, damage: type.damage, fireRate: type.fireRate, range: type.range, projectileSpeed: type.projectileSpeed, color: type.color, upgradeLevel: 0 };
+    barrelGroup.add(cannonMesh);
+    
+    // Ponta do canhão (boca de fogo) - ORIGEM DOS PROJÉTEIS
+    const muzzleGeo = new THREE.CylinderGeometry(visual.barrelRadius * 1.2, visual.barrelRadius, 0.3, 12);
+    const muzzleMat = new THREE.MeshStandardMaterial({ 
+        color: 0x222222, 
+        metalness: 1.0, 
+        roughness: 0.0,
+        emissive: type.color,
+        emissiveIntensity: visual.glowIntensity
+    });
+    const muzzle = new THREE.Mesh(muzzleGeo, muzzleMat);
+    muzzle.rotation.z = Math.PI / 2;
+    muzzle.position.x = visual.barrelLength;
+    barrelGroup.add(muzzle);
+    
+    // Luz na ponta (se tiver glow)
+    if (visual.glowIntensity > 0) {
+        const muzzleLight = new THREE.PointLight(type.color, visual.glowIntensity, 5);
+        muzzleLight.position.x = visual.barrelLength + 0.2;
+        barrelGroup.add(muzzleLight);
+    }
+    
+    barrelGroup.position.y = visual.baseHeight / 2;
+    cannon.add(barrelGroup);
+    
+    cannon.userData = { 
+        type: typeIndex, 
+        lastShot: 0, 
+        target: null, 
+        cannonMesh: barrelGroup, 
+        muzzlePosition: new THREE.Vector3(visual.barrelLength + 0.2, 0, 0),
+        damage: type.damage, 
+        fireRate: type.fireRate, 
+        range: type.range, 
+        projectileSpeed: type.projectileSpeed, 
+        color: type.color, 
+        upgradeLevel: 0 
+    };
+    
     scene.add(cannon);
     placedCannons.push(cannon);
 }
@@ -1517,14 +1727,76 @@ function updateCannons() {
 }
 
 function fireCannonProjectile(cannon, target) {
-    const cannonData = cannon.userData;
-    const projectile = new THREE.Mesh(new THREE.SphereGeometry(0.4), new THREE.MeshBasicMaterial({ color: cannonData.color }));
-    projectile.position.copy(cannon.position);
-    projectile.position.y += 2;
-    const dx = target.position.x - projectile.position.x;
-    const dz = target.position.z - projectile.position.z;
+    const type = cannonTypes[cannon.userData.type];
+    const projData = type.projectile;
+    
+    // Calcula posição da boca do canhão no mundo
+    const muzzleWorldPos = new THREE.Vector3();
+    const muzzleLocal = cannon.userData.muzzlePosition;
+    const barrelGroup = cannon.userData.cannonMesh;
+    
+    // Posição mundial da boca do canhão
+    const worldQuaternion = new THREE.Quaternion();
+    const worldScale = new THREE.Vector3();
+    barrelGroup.matrixWorld.decompose(muzzleWorldPos, worldQuaternion, worldScale);
+    
+    const rotatedMuzzle = muzzleLocal.clone().applyQuaternion(worldQuaternion);
+    muzzleWorldPos.add(rotatedMuzzle);
+    
+    // Cria geometria baseada no tipo - SIMPLIFICADA
+    let projectileGeo;
+    switch(projData.type) {
+        case 'sphere':
+            projectileGeo = new THREE.SphereGeometry(projData.size, 6, 6); // Era 8,8
+            break;
+        case 'cylinder':
+            projectileGeo = new THREE.CylinderGeometry(projData.size * 0.5, projData.size * 0.5, projData.size * 2, 6); // Era 8
+            break;
+        case 'octahedron':
+            projectileGeo = new THREE.OctahedronGeometry(projData.size);
+            break;
+        case 'icosahedron':
+            projectileGeo = new THREE.IcosahedronGeometry(projData.size);
+            break;
+        case 'dodecahedron':
+            projectileGeo = new THREE.DodecahedronGeometry(projData.size);
+            break;
+        case 'torus':
+            projectileGeo = new THREE.TorusGeometry(projData.size * 0.6, projData.size * 0.3, 6, 8); // Era 8,12
+            break;
+        default:
+            projectileGeo = new THREE.SphereGeometry(projData.size, 6, 6);
+    }
+    
+    // Material BASIC ao invés de STANDARD (mais rápido)
+    const projectileMat = new THREE.MeshBasicMaterial({ 
+        color: projData.color
+    });
+    
+    const projectile = new THREE.Mesh(projectileGeo, projectileMat);
+    projectile.position.copy(muzzleWorldPos);
+    
+    // SEM LUZ INDIVIDUAL - economiza muito performance!
+    
+    const dx = target.position.x - muzzleWorldPos.x;
+    const dz = target.position.z - muzzleWorldPos.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
-    projectile.userData = { vx: (dx / dist) * cannonData.projectileSpeed, vz: (dz / dist) * cannonData.projectileSpeed, damage: cannonData.damage, lifetime: 200, fromCannon: true };
+    
+    projectile.userData = {
+        vx: (dx / dist) * cannon.userData.projectileSpeed,
+        vz: (dz / dist) * cannon.userData.projectileSpeed,
+        damage: cannon.userData.damage,
+        lifetime: 200,
+        fromCannon: true,
+        trail: projData.trail ? [] : null,
+        trailColor: projData.trailColor,
+        rotationSpeed: new THREE.Vector3(
+            Math.random() * 0.2 - 0.1,
+            Math.random() * 0.2 - 0.1,
+            Math.random() * 0.2 - 0.1
+        )
+    };
+    
     scene.add(projectile);
     projectiles.push(projectile);
     playSound('cannon');
@@ -1624,7 +1896,42 @@ function updateProjectiles() {
         proj.position.x += proj.userData.vx;
         proj.position.z += proj.userData.vz;
         proj.userData.lifetime--;
-        if (proj.userData.lifetime <= 0) { scene.remove(proj); return false; }
+        if (proj.userData.lifetime <= 0) { 
+            if (proj.userData.trailLine) scene.remove(proj.userData.trailLine); // Limpa trail
+            scene.remove(proj); 
+            return false; 
+        }
+        // Rotação do projétil
+        if (proj.userData.rotationSpeed) {
+            proj.rotation.x += proj.userData.rotationSpeed.x;
+            proj.rotation.y += proj.userData.rotationSpeed.y;
+            proj.rotation.z += proj.userData.rotationSpeed.z;
+        }
+        
+        // Trail (rastro) - OTIMIZADO
+        if (proj.userData.trail) {
+            const trailPoint = proj.position.clone();
+            proj.userData.trail.push(trailPoint);
+            
+            if (proj.userData.trail.length > 5) { // Reduzido de 10 para 5
+                proj.userData.trail.shift();
+            }
+            
+            // Cria/atualiza linha APENAS UMA VEZ por projétil
+            if (!proj.userData.trailLine && proj.userData.trail.length > 1) {
+                const trailGeo = new THREE.BufferGeometry().setFromPoints(proj.userData.trail);
+                const trailMat = new THREE.LineBasicMaterial({ 
+                    color: proj.userData.trailColor,
+                    transparent: true,
+                    opacity: 0.4
+                });
+                proj.userData.trailLine = new THREE.Line(trailGeo, trailMat);
+                scene.add(proj.userData.trailLine);
+            } else if (proj.userData.trailLine) {
+                // Atualiza geometria existente ao invés de criar nova
+                proj.userData.trailLine.geometry.setFromPoints(proj.userData.trail);
+            }
+        }
         for (let i = 0; i < enemies.length; i++) {
             const enemy = enemies[i];
             const dx = enemy.position.x - proj.position.x;
@@ -1639,6 +1946,7 @@ function updateProjectiles() {
                     updateUI();
                     playSound('monsterDeath');
                     }
+                if (proj.userData.trailLine) scene.remove(proj.userData.trailLine); // Limpa trail
                 scene.remove(proj);
                 return false;
             }
@@ -1674,7 +1982,7 @@ function updateUI() {
     document.getElementById('kills').textContent = kills;
     document.getElementById('gold').textContent = gold;
     document.getElementById('wave').textContent = wave;
-    document.getElementById('cannonName').textContent = '💣 ' + cannonTypes[selectedCannonIndex].name;
+    document.getElementById('cannonName').textContent = `💣 ${cannonTypes[selectedCannonIndex].name} (${placedCannons.length}/${MAX_CANNONS})`;
     document.getElementById('playerHP').textContent = playerHP;
 const hpBar = document.getElementById('playerHPBar');
 const hpPercent = (playerHP / playerMaxHP) * 100;
@@ -1923,51 +2231,6 @@ function animate() {
 }
 
 window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
-
-// ========================================
-// FUNÇÕES DE TESTE/DEBUG (do teste_visual.js)
-// ========================================
-function testarFarol() {
-    console.log("\n💡 TESTE DO FAROL:");
-    if (beaconPivot) {
-        console.log("✅ beaconPivot existe");
-        console.log("📍 Posição:", beaconPivot.position);
-        console.log("🔄 Rotação Y:", beaconPivot.rotation.y.toFixed(2));
-        console.log("👶 Filhos:", beaconPivot.children.length);
-        beaconPivot.children.forEach((child, i) => {
-            if (child.type === 'SpotLight') console.log(`  🔦 SpotLight (${i}) - Intensidade: ${child.intensity}`);
-            if (child.type === 'Mesh') console.log(`  📐 Feixe volumétrico (${i}) - Opacidade: ${child.material.opacity}`);
-        });
-    } else console.log("❌ beaconPivot NÃO encontrado!");
-}
-
-function testarIlha() {
-    console.log("\n🏔️ TESTE DA ILHA:");
-    if (island) { console.log("✅ Ilha encontrada"); console.log("📍 Posição Y:", island.position.y); console.log("🎨 Cor:", island.material.color); }
-    else console.log("❌ Ilha NÃO encontrada!");
-}
-
-function testarFuracoes() {
-    console.log("\n🌪️ TESTE DOS FURACÕES:");
-    if (tornadoes && tornadoes.length > 0) {
-        console.log(`✅ ${tornadoes.length} furacões encontrados`);
-        tornadoes.forEach((t, i) => console.log(`  Furacão ${i + 1}: Altura ${t.geometry.parameters.height}, Fase ${t.userData.phase.toFixed(2)}`));
-    } else console.log("❌ Furacões NÃO encontrados!");
-}
-
-function testarTudo() {
-    console.log("🚀 TESTES COMPLETOS\n========================");
-    testarFarol(); testarIlha(); testarFuracoes();
-    console.log("\n✅ Testes concluídos!");
-}
-
-function mostrarFarol() { if (beaconPivot) { player.position.set(0, towerTopY + 10, 0); camera.rotation.x = -Math.PI / 4; console.log("💡 Teleportado para o farol"); } }
-function mostrarNavio() { player.position.set(-75, 20, 45); player.rotation.y = Math.PI / 3; console.log("⛵ Teleportado para o navio"); }
-function forcaRaio() { createLightningBolt(); console.log("⚡ Raio forçado!"); }
-
-console.log("🎮 TheDeep - Comandos de Debug disponíveis:");
-console.log("  testarTudo(), testarFarol(), testarIlha(), testarFuracoes()");
-console.log("  mostrarFarol(), mostrarNavio(), forcaRaio()");
 
 // ===== INICIAR JOGO =====
 init();
