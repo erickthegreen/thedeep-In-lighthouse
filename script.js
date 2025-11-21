@@ -848,7 +848,26 @@ function createWeather() {
 function createLightningBolt(fromPos, toPos) {
     if (currentBolt) scene.remove(currentBolt);
 
-    const lightningColors = [0x00ddff, 0xffff00, 0xffffff, 0x88ffff, 0xffffaa, 0xaaaaff];
+    const lightningColors = [
+    0x00ddff,    // Azul ciano (original)
+    0xffff00,    // Amarelo (original)
+    0xffffff,    // Branco (original)
+    0x88ffff,    // Azul claro (original)
+    0xffffaa,    // Amarelo claro (original)
+    0xaaaaff,    // Roxo azulado (original)
+    
+    // NOVAS CORES QUE VOCÊ PODE ADICIONAR:
+    0xff4444,    // Vermelho
+    0xff00ff,    // Magenta
+    0x00ff00,    // Verde
+    0xff8800,    // Laranja
+    0xaa00ff,    // Roxo
+    0x00ff88,    // Verde água
+    0xff0088,    // Rosa
+    0x44ff44,    // Verde limão
+    0x8888ff,    // Azul médio
+    0xffaa00     // Dourado
+    ];
     const boltColor = lightningColors[Math.floor(Math.random() * lightningColors.length)];
     
     const boltGroup = new THREE.Group();
