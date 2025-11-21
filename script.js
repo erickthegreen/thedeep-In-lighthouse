@@ -52,6 +52,10 @@ let beaconPivot = null;
 // ===== SISTEMA DE FAROL HP =====
 let lighthouseHP = 1000;
 const lighthouseMaxHP = 1000;
+// ===== SISTEMA DE CURA DO FAROL =====
+let lastHealWave = 0;
+let playerHP = 100;
+const playerMaxHP = 100;
 
 // ===== SISTEMA DE CANHÕES =====
 let placedCannons = [];
@@ -59,6 +63,9 @@ let buildMode = false;
 let removeMode = false;
 let ghostCannon = null;
 let selectedCannonIndex = 0;
+// ===== POSIÇÃO DO BARCO =====
+const SHIPWRECK_POSITION = new THREE.Vector3(-75, -2, 45);
+const SHIPWRECK_RADIUS = 30;
 
 // ===== 10 TIPOS DE CANHÕES (BRONZE → DIAMANTE) =====
 const cannonTypes = [
@@ -98,6 +105,7 @@ let kills = 0, gold = 100, wave = 1, enemyCount = 3;
 let waveInProgress = false;
 let nextWaveTimer = 0;
 let gameActive = true, shopOpen = false, lastShot = 0;
+let gameStarted = false;
 const keys = {};
 const PLAYER_SPEED = 0.3, ARENA_SIZE = 250;
 let gamePaused = false;
@@ -107,7 +115,6 @@ let onStairs = false;
 let currentStairIndex = -1;
 let lastStairMove = 0;
 
-// ===== SISTEMA DE ÁUDIO =====
 // ===== SISTEMA DE ÁUDIO COMPLETO =====
 function setupAudio() {
     const audioLoader = new THREE.AudioLoader();
@@ -239,7 +246,11 @@ function setupSettingsMenu() {
     // Fechar menu
     closeBtn.addEventListener('click', () => {
         menu.style.display = 'none';
-        if (gameStarted) renderer.domElement.requestPointerLock();
+        if (gameStarted) {
+            renderer.domElement.requestPointerLock();
+        } else {
+            document.getElementById('mainMenu').style.display = 'flex';
+        }
     });
 
     // Tecla ESC também fecha
@@ -252,7 +263,6 @@ function setupSettingsMenu() {
 
 
 // ===== INICIALIZAÇÃO =====
-let gameStarted = false;
 
 async function init() {
     await loadMonsterData();
@@ -281,17 +291,66 @@ async function init() {
     setupControls();
     setupShop();
     setupCannonMenu();
+    setupSettingsMenu();
 
     if (isMobile) setupMobileControls();
 
     updateUI();
     
-    // NÃO inicia o jogo ainda!
     setupIntroSequence();
     
     animate();
     
     console.log("✅ TheDeep inicializado - aguardando introdução!");
+}
+
+// ===== SISTEMA DE RECORDS =====
+function loadRecords() {
+    const saved = localStorage.getItem('thedeep_records');
+    if (saved) {
+        try {
+            return JSON.parse(saved);
+        } catch (e) {
+            return [];
+        }
+    }
+    return [];
+}
+
+function saveRecord(wave, kills) {
+    let records = loadRecords();
+    records.push({ wave, kills, date: new Date().toLocaleDateString('pt-BR') });
+    records.sort((a, b) => b.wave - a.wave || b.kills - a.kills);
+    records = records.slice(0, 5);
+    localStorage.setItem('thedeep_records', JSON.stringify(records));
+}
+
+function displayRecords() {
+    const records = loadRecords();
+    const recordsList = document.getElementById('recordsList');
+    
+    if (!recordsList) return;
+    
+    if (records.length === 0) {
+        recordsList.innerHTML = '<p style="color: #888; text-align: center;">Nenhum record ainda. Seja o primeiro!</p>';
+        return;
+    }
+    
+    let html = '';
+    records.forEach((record, index) => {
+        html += `
+            <div style="background: rgba(0, 40, 60, 0.8); padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #00f5ff;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 24px; font-weight: bold; color: #ffd700;">#${index + 1}</span>
+                    <div style="text-align: center; flex: 1;">
+                        <div style="color: #00f5ff; font-size: 18px;">Onda ${record.wave}</div>
+                        <div style="color: #aaa; font-size: 14px;">${record.kills} Mortes | ${record.date}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    recordsList.innerHTML = html;
 }
 
 function setupIntroSequence() {
@@ -302,35 +361,100 @@ function setupIntroSequence() {
     const skipBtn = document.getElementById('skipIntro');
 
     let loopCount = 0;
-    const maxLoops = 60; // 60 segundos = 1 minuto
+    const maxLoops = 60;
 
-    // Botão aceitar aviso
     acceptBtn.addEventListener('click', () => {
         warningScreen.style.display = 'none';
         introScreen.style.display = 'flex';
         video.play();
     });
 
-    // LOOP DE 1 MINUTO - recomeça o vídeo até completar 60 segundos
     video.addEventListener('ended', () => {
-        loopCount += video.duration; // Soma a duração do vídeo
+        loopCount += video.duration;
         if (loopCount < maxLoops) {
             video.currentTime = 0;
             video.play();
         } else {
-            startGameAfterIntro();
+            showMainMenu();
         }
     });
 
-    // Botão pular intro
-    skipBtn.addEventListener('click', startGameAfterIntro);
+    skipBtn.addEventListener('click', showMainMenu);
 
-    // ESC para pular
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && introScreen.style.display === 'flex') {
-            startGameAfterIntro();
+            showMainMenu();
         }
     });
+    
+    document.getElementById('newGameBtn').addEventListener('click', startNewGame);
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+        document.getElementById('mainMenu').style.display = 'none';
+        document.getElementById('settingsMenu').style.display = 'block';
+    });
+    document.getElementById('recordsBtn').addEventListener('click', () => {
+        displayRecords();
+        document.getElementById('mainMenu').style.display = 'none';
+        document.getElementById('recordsMenu').style.display = 'flex';
+    });
+    document.getElementById('backFromRecords').addEventListener('click', () => {
+        document.getElementById('recordsMenu').style.display = 'none';
+        document.getElementById('mainMenu').style.display = 'flex';
+    });
+}
+
+function showMainMenu() {
+    document.getElementById('introVideo').style.display = 'none';
+    document.getElementById('mainMenu').style.display = 'flex';
+    const video = document.getElementById('gameIntroVideo');
+    video.loop = true;
+    video.play();
+}
+
+function startNewGame() {
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('openSettings').style.display = 'block';
+    document.getElementById('ui').style.display = 'block';
+    gameStarted = true;
+    
+    kills = 0;
+    gold = 100;
+    wave = 1;
+    enemyCount = 3;
+    lighthouseHP = lighthouseMaxHP;
+    playerHP = playerMaxHP;
+    lastHealWave = 0;
+    enemies = [];
+    projectiles = [];
+    placedCannons.forEach(cannon => scene.remove(cannon));
+    placedCannons = [];
+    gameActive = true;
+    
+    cannonTypes.forEach((type, index) => {
+        type.owned = (index === 0);
+    });
+    
+    setupAudio();
+    updateUI();
+    startWave();
+    renderer.domElement.requestPointerLock();
+}
+
+function returnToMenu() {
+    document.getElementById('gameOver').style.display = 'none';
+    document.getElementById('mainMenu').style.display = 'flex';
+    document.getElementById('openSettings').style.display = 'none';
+    document.getElementById('ui').style.display = 'none';
+    
+    gameActive = false;
+    gameStarted = false;
+    
+    if (ambientMusic && ambientMusic.isPlaying) ambientMusic.stop();
+    if (rainSound && rainSound.isPlaying) rainSound.stop();
+    
+    const video = document.getElementById('gameIntroVideo');
+    video.loop = true;
+    video.play();
 }
 
 function startGameAfterIntro() {
@@ -980,8 +1104,51 @@ function createPlayer() {
     player.add(camera);
     camera.position.set(0, 0, 0);
 }
+// ===== VERIFICAR SE ESTÁ NO BARCO =====
+function isPlayerNearShipwreck() {
+    const dx = player.position.x - SHIPWRECK_POSITION.x;
+    const dz = player.position.z - SHIPWRECK_POSITION.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    return distance < SHIPWRECK_RADIUS;
+}
 
-// ===== CONTROLES =====
+// ===== VERIFICAR SE ESTÁ NO FAROL =====
+function isPlayerInsideLighthouse() {
+    const dx = player.position.x;
+    const dz = player.position.z;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    return distance < LIGHTHOUSE_RADIUS_BASE && player.position.y < 15;
+}
+
+// ===== SISTEMA DE CURA DO FAROL =====
+function checkLighthouseHeal() {
+    if (wave - lastHealWave >= 5 && isPlayerInsideLighthouse()) {
+        const healAmount = 20;
+        const oldHP = playerHP;
+        playerHP = Math.min(playerMaxHP, playerHP + healAmount);
+        
+        if (playerHP > oldHP) {
+            lastHealWave = wave;
+            
+            const healParticles = new THREE.Group();
+            for (let i = 0; i < 20; i++) {
+                const particleGeo = new THREE.SphereGeometry(0.3, 8, 8);
+                const particleMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                const particle = new THREE.Mesh(particleGeo, particleMat);
+                particle.position.set(
+                    player.position.x + (Math.random() - 0.5) * 3,
+                    player.position.y + Math.random() * 2,
+                    player.position.z + (Math.random() - 0.5) * 3
+                );
+                healParticles.add(particle);
+            }
+            scene.add(healParticles);
+            setTimeout(() => scene.remove(healParticles), 1000);
+            console.log(`💚 CURADO! +${healAmount} HP (${oldHP} → ${playerHP})`);
+        }
+        updateUI();
+    }
+}
 // ===== CONTROLES (VERSÃO CORRIGIDA E MELHORADA) =====
 function setupControls() {
     document.addEventListener('keydown', (e) => {
@@ -1009,7 +1176,13 @@ function setupControls() {
         }
 
         // E = Loja / P = Pause
-        if (e.key.toLowerCase() === 'e') toggleShop();
+        if (e.key.toLowerCase() === 'e') {
+            if (isPlayerNearShipwreck()) {
+                toggleShop();
+            } else {
+                console.log("🚫 Você precisa estar no barco naufragado para abrir a loja!");
+            }
+        }
         if (e.key.toLowerCase() === 'p') togglePause();
         if (e.key === 'Escape' && gameStarted && !shopOpen) {
         const menu = document.getElementById('settingsMenu');
@@ -1050,7 +1223,7 @@ function setupControls() {
         else if (removeMode) removeCannon();
     });
 
-    document.getElementById('restartButton').addEventListener('click', restartGame);
+    document.getElementById('restartButton').addEventListener('click', returnToMenu);
 
     // SCROLL DO MOUSE = troca canhão (agora funciona mesmo se não tiver todos desbloqueados)
     document.addEventListener('wheel', (e) => {
@@ -1304,13 +1477,23 @@ function updateShop() {
 }
 
 function toggleShop() {
+    if (!shopOpen && !isPlayerNearShipwreck()) {
+        console.log("🚫 Você precisa estar no barco naufragado para abrir a loja!");
+        return;
+    }
+    
     shopOpen = !shopOpen;
-    const shop = document.getElementById('shop');
-    if (shopOpen) { shop.style.display = 'block'; updateShop(); document.exitPointerLock(); }
-    else { shop.style.display = 'none'; renderer.domElement.requestPointerLock(); }
+    const shopElement = document.getElementById('shop');
+    
+    if (shopOpen) {
+        shopElement.style.display = 'block';
+        updateShop();
+        document.exitPointerLock();
+    } else {
+        shopElement.style.display = 'none';
+        renderer.domElement.requestPointerLock();
+    }
 }
-
-function togglePause() { gamePaused = !gamePaused; document.getElementById('pauseMessage').style.display = gamePaused ? 'block' : 'none'; }
 
 // ===== IA DOS CANHÕES =====
 function updateCannons() {
@@ -1384,9 +1567,6 @@ function updateEnemies() {
         }
     }
 }
-// ===== SISTEMA DE VIDA DO PERSONAGEM (PLAYER) =====
-let playerHP = 100;
-const playerMaxHP = 100;
 
 // DANO NO PLAYER (quando monstro toca)
 function damagePlayer(damage) {
@@ -1495,17 +1675,30 @@ function updateUI() {
     document.getElementById('gold').textContent = gold;
     document.getElementById('wave').textContent = wave;
     document.getElementById('cannonName').textContent = '💣 ' + cannonTypes[selectedCannonIndex].name;
+    document.getElementById('playerHP').textContent = playerHP;
+const hpBar = document.getElementById('playerHPBar');
+const hpPercent = (playerHP / playerMaxHP) * 100;
+hpBar.style.width = hpPercent + '%';
+
+if (hpPercent > 60) {
+    hpBar.style.background = 'linear-gradient(90deg, #00ff00, #00cc00)';
+} else if (hpPercent > 30) {
+    hpBar.style.background = 'linear-gradient(90deg, #ffaa00, #ff8800)';
+} else {
+    hpBar.style.background = 'linear-gradient(90deg, #ff0000, #cc0000)';
+}
 }
 
 // ===== GAME OVER =====
 function gameOver() {
     gameActive = false;
+    saveRecord(wave, kills);
     document.getElementById('finalWave').textContent = wave;
     document.getElementById('finalKills').textContent = kills;
     document.getElementById('gameOver').style.display = 'block';
+    document.exitPointerLock();
+    console.log("💀 GAME OVER! Record salvo.");
 }
-
-function restartGame() { location.reload(); }
 
 // ===== MOVIMENTO DO JOGADOR =====
 function updatePlayer() {
