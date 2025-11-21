@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TheDeep - Proteja o Farol</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ===== TELA DE AVISO DE EPILEPSIA ===== -->
+    <div id="epilepsyWarning" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(135deg, #000000, #1a0a0a); z-index: 9999; display: flex; align-items: center; justify-content: center; color: #fff; font-family: 'Courier New', monospace;">
+        <div style="max-width: 900px; text-align: center; padding: 50px; background: rgba(0, 0, 0, 0.8); border: 4px solid #ff0000; border-radius: 20px; box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);">
+            <h1 style="color: #ff0000; font-size: 52px; margin-bottom: 30px; text-shadow: 0 0 20px #ff0000; animation: pulse 2s infinite;">⚠️ AVISO: RISCO DE CONVULSÕES ⚠️</h1>
+            <p style="font-size: 22px; line-height: 1.9; margin-bottom: 40px; color: #ffcccc; text-align: justify;">
+                Neste jogo você encontrará uma variedade de <strong>efeitos visuais intensos</strong> (por exemplo, luzes piscando durante as sequências de raios, tempestades e explosões) 
+                que <strong>podem provocar convulsões ou perda de consciência</strong> em uma parcela pequena da população.
+                <br><br>
+                Se você ou alguém da sua família <strong>já apresentou sintomas de epilepsia</strong> na presença de luzes piscando, 
+                <strong>consulte seu médico antes de jogar TheDeep</strong>.
+                <br><br>
+                Se você ou alguém que você conhece sentir algum dos sintomas acima enquanto estiver jogando, 
+                <strong>PARE IMEDIATAMENTE e procure atendimento médico</strong>.
+            </p>
+            <button id="acceptWarning" style="padding: 25px 70px; font-size: 26px; background: linear-gradient(90deg, #00ff00, #00cc00); color: #000; border: none; cursor: pointer; font-weight: bold; border-radius: 12px; transition: all 0.3s; box-shadow: 0 0 20px rgba(0, 255, 0, 0.5); text-transform: uppercase;">
+                ✅ Entendi e Quero Continuar
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== TELA DE VÍDEO INTRO ===== -->
+    <div id="introVideo" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 9998; display: none; align-items: center; justify-content: center; flex-direction: column;">
+        <video id="gameIntroVideo" style="width: 100%; height: 100%; object-fit: contain;" autoplay>
+            <source src="video/intro do jogo.mp4" type="video/mp4">
+            Seu navegador não suporta vídeos HTML5.
+        </video>
+        <button id="skipIntro" style="position: absolute; bottom: 50px; right: 50px; padding: 18px 45px; font-size: 20px; background: rgba(0, 245, 255, 0.3); color: #00f5ff; border: 3px solid #00f5ff; cursor: pointer; font-weight: bold; border-radius: 10px; transition: all 0.3s; text-shadow: 0 0 10px #00f5ff; font-family: 'Courier New', monospace; text-transform: uppercase;">
+            ⏭️ Pular Intro [ESC]
+        </button>
+        <div style="position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); color: #00f5ff; font-size: 18px; font-family: 'Courier New', monospace; text-shadow: 0 0 10px #00f5ff; text-align: center; max-width: 80%; line-height: 1.8;">
+            <p style="margin: 0; opacity: 0.9;">
+                🌊 <strong>Você é um náufrago preso em uma ilha amaldiçoada...</strong><br>
+                ⚡ Criaturas das profundezas atacarão durante a noite...<br>
+                🏰 Use os canhões do farol para sobreviver até o amanhecer!
+            </p>
+        </div>
+    </div>
+    <!-- ===== MENU DE CONFIGURAÇÕES ===== -->
+    <div id="settingsMenu" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0, 10, 20, 0.98); border: 4px solid #00f5ff; border-radius: 20px; padding: 40px; width: 600px; z-index: 9997; box-shadow: 0 0 50px rgba(0, 245, 255, 0.5); font-family: 'Courier New', monospace;">
+        <h2 style="color: #00f5ff; text-align: center; font-size: 36px; margin-bottom: 30px; text-shadow: 0 0 15px #00f5ff;">⚙️ CONFIGURAÇÕES DE ÁUDIO</h2>
+        
+        <div style="margin-bottom: 25px;">
+            <label style="color: #00f5ff; font-size: 20px; display: block; margin-bottom: 10px;">🎵 Música Ambiente</label>
+            <input type="range" id="musicVolume" min="0" max="100" value="30" style="width: 100%; height: 8px; background: #1a3a52; border-radius: 5px; outline: none; cursor: pointer;">
+            <span id="musicVolumeValue" style="color: #fff; font-size: 18px; float: right; margin-top: 5px;">30%</span>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="color: #00f5ff; font-size: 20px; display: block; margin-bottom: 10px;">🌧️ Volume da Chuva</label>
+            <input type="range" id="rainVolume" min="0" max="100" value="50" style="width: 100%; height: 8px; background: #1a3a52; border-radius: 5px; outline: none; cursor: pointer;">
+            <span id="rainVolumeValue" style="color: #fff; font-size: 18px; float: right; margin-top: 5px;">50%</span>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="color: #00f5ff; font-size: 20px; display: block; margin-bottom: 10px;">💥 Volume dos Canhões</label>
+            <input type="range" id="cannonVolume" min="0" max="100" value="60" style="width: 100%; height: 8px; background: #1a3a52; border-radius: 5px; outline: none; cursor: pointer;">
+            <span id="cannonVolumeValue" style="color: #fff; font-size: 18px; float: right; margin-top: 5px;">60%</span>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="color: #00f5ff; font-size: 20px; display: block; margin-bottom: 10px;">👹 Volume dos Monstros</label>
+            <input type="range" id="monsterVolume" min="0" max="100" value="50" style="width: 100%; height: 8px; background: #1a3a52; border-radius: 5px; outline: none; cursor: pointer;">
+            <span id="monsterVolumeValue" style="color: #fff; font-size: 18px; float: right; margin-top: 5px;">50%</span>
+        </div>
+
+        <div style="margin-bottom: 25px;">
+            <label style="color: #00f5ff; font-size: 20px; display: block; margin-bottom: 10px;">⚡ Volume dos Raios</label>
+            <input type="range" id="lightningVolume" min="0" max="100" value="40" style="width: 100%; height: 8px; background: #1a3a52; border-radius: 5px; outline: none; cursor: pointer;">
+            <span id="lightningVolumeValue" style="color: #fff; font-size: 18px; float: right; margin-top: 5px;">40%</span>
+        </div>
+
+        <button id="closeSettings" style="width: 100%; padding: 18px; font-size: 22px; background: linear-gradient(90deg, #00f5ff, #0088cc); color: #000; border: none; cursor: pointer; font-weight: bold; border-radius: 12px; margin-top: 20px; transition: all 0.3s; text-transform: uppercase;">
+            ✅ Aplicar e Fechar
+        </button>
+    </div>
+
+    <!-- Botão de Configurações (in-game) -->
+    <button id="openSettings" style="position: fixed; top: 20px; right: 20px; padding: 15px 25px; font-size: 18px; background: rgba(0, 245, 255, 0.3); color: #00f5ff; border: 3px solid #00f5ff; cursor: pointer; font-weight: bold; border-radius: 10px; z-index: 100; font-family: 'Courier New', monospace; transition: all 0.3s; display: none;">
+        ⚙️ Config
+    </button>
+
+    <canvas id="gameCanvas"></canvas>
+        <div id="lowHealthEffect" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 5; display: none;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 30px solid rgba(255, 0, 0, 0); box-shadow: inset 0 0 150px rgba(255, 0, 0, 0); transition: all 0.3s; animation: heartbeat 1.5s infinite;" id="lowHealthBorder"></div>
+    </div>
+    
+    <div id="crosshair"></div>
+
+    <div id="ui">
+        <div>💀 Mortes: <span id="kills">0</span></div>
+        <div>💰 Ouro: <span id="gold">100</span></div>
+        <div>🔫 Canhão: <span id="cannonName">Canhão Básico</span></div>
+        <div>🌊 Onda: <span id="wave">1</span></div>
+        <div>❤️ Vida: <span id="playerHP">100</span> / 100</div>
+        <div id="playerHPBarBg" style="width:250px;height:25px;background:#1a1a1a;border:3px solid #00f5ff;border-radius:12px;overflow:hidden;margin-top:5px;">
+            <div id="playerHPBar" style="width:100%;height:100%;background:linear-gradient(90deg,#00ff00,#00cc00);"></div>
+        </div>
+        <div class="instructions-ingame">
+            [C] Construir | [R] Remover | [1-0] Canhões | [E] Loja
+        </div>
+    </div>
+
+    <div id="buildModeIndicator">
+        🔨 MODO CONSTRUÇÃO ATIVO
+        <div style="font-size: 16px; margin-top: 10px;">🖱️ Clique para colocar canhão</div>
+    </div>
+
+    <div id="mobileControls">
+        <div id="joystick-zone"></div>
+        <div id="buttons-zone">
+            <button id="shoot-button">CONSTRUIR</button>
+            <button id="shop-button">LOJA [E]</button>
+            <button id="jump-button">PULAR</button>
+        </div>
+    </div>
+
+    <div id="gameOver">
+        <h1>GAME OVER</h1>
+        <p>O Farol foi destruído na onda <span id="finalWave">1</span>!</p>
+        <p>Você eliminou <span id="finalKills">0</span> monstros.</p>
+        <button id="restartButton">Jogar Novamente</button>
+    </div>
+
+    <div id="instructions-general">
+        W/A/S/D = Mover | Mouse = Olhar | [C] = Construir | [R] = Remover | 1-0 = Canhões | E = Loja
+    </div>
+
+    <div id="pauseMessage" style="display:none;">
+        JOGO PAUSADO (P para continuar)
+    </div>
+
+    <div id="shop">
+        <h2>🏪 LOJA DE CANHÕES 🏪</h2>
+        <div id="shopGold">
+            💰 Seu Ouro: <span id="shopGoldAmount">100</span>
+        </div>
+        <div class="cannon-grid" id="cannonGrid"></div>
+        <button id="closeShop">Fechar Loja [E]</button>
+    </div>
+
+    <div id="cannonMenu">
+        <h3>🔧 Menu do Canhão</h3>
+        <div id="cannonMenuInfo"></div>
+        <button id="upgradeCannonBtn">⬆️ Upgrade (Custo: <span id="upgradeCost">100</span>💰)</button>
+        <button id="sellCannonBtn">💰 Vender (Recebe: <span id="sellValue">25</span>💰)</button>
+        <button id="closeCannonMenu">❌ Fechar</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nipplejs/0.10.1/nipplejs.min.js"></script>
+    <script src="script.js"></script>
+
+<style>
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        
+        @keyframes heartbeat {
+            0%, 100% { 
+                border-color: rgba(255, 0, 0, 0.4);
+                box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.3);
+            }
+            50% { 
+                border-color: rgba(255, 0, 0, 0.7);
+                box-shadow: inset 0 0 200px rgba(255, 0, 0, 0.5);
+            }
+        }
+        
+        #acceptWarning:hover {
+            background: linear-gradient(90deg, #00ff44, #00ff00);
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+        
+        #acceptWarning:hover {
+            background: linear-gradient(90deg, #00ff44, #00ff00);
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
+        }
+        
+        #skipIntro:hover {
+            background: rgba(0, 245, 255, 0.6);
+            box-shadow: 0 0 20px rgba(0, 245, 255, 0.8);
+            transform: scale(1.05);
+        }
+
+        #openSettings:hover {
+    background: rgba(0, 245, 255, 0.6);
+    box-shadow: 0 0 20px rgba(0, 245, 255, 0.8);
+    transform: scale(1.05);
+}
+
+#closeSettings:hover {
+    background: linear-gradient(90deg, #00ffff, #00aaff);
+    box-shadow: 0 0 25px rgba(0, 245, 255, 0.8);
+    transform: scale(1.02);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #00f5ff;
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00f5ff;
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    background: #00f5ff;
+    cursor: pointer;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00f5ff;
+}
+
+    </style>
+    
+</body>
+</html>

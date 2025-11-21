@@ -1,0 +1,74 @@
+[
+  {
+    "id": 1,
+    "sprite": "sprites/monster1.png",
+    "health": 10,
+    "gold": 10,
+    "speed": 0.08,
+    "damage": 4,
+    "name": "Limo Venenoso"
+  },
+  {
+    "id": 2,
+    "sprite": "sprites/monster2.png",
+    "health": 20,
+    "gold": 16,
+    "speed": 0.10,
+    "damage": 6,
+    "name": "Piranha Sombria"
+  },
+  {
+    "id": 3,
+    "sprite": "sprites/monster3.png",
+    "health": 35,
+    "gold": 30,
+    "speed": 0.12,
+    "damage": 8,
+    "name": "Serpente Abissal"
+  },
+  {
+    "id": 4,
+    "sprite": "sprites/monster4.png",
+    "health": 50,
+    "gold": 50,
+    "speed": 0.14,
+    "damage": 12,
+    "name": "Caranguejo Mutante"
+  },
+  {
+    "id": 5,
+    "sprite": "sprites/monster5.png",
+    "health": 80,
+    "gold": 80,
+    "speed": 0.16,
+    "damage": 16,
+    "name": "Medusa das Profundezas"
+  },
+  {
+    "id": 6,
+    "sprite": "sprites/monster6.png",
+    "health": 120,
+    "gold": 120,
+    "speed": 0.10,
+    "damage": 20,
+    "name": "Cavaleiro Esquelético"
+  },
+  {
+    "id": 7,
+    "sprite": "sprites/monster7.png",
+    "health": 200,
+    "gold": 200,
+    "speed": 0.16,
+    "damage": 30,
+    "name": "Kraken Jovem"
+  },
+  {
+    "id": 8,
+    "sprite": "sprites/monster8.png",
+    "health": 400,
+    "gold": 500,
+    "speed": 0.14,
+    "damage": 50,
+    "name": "Leviatã Ancião"
+  }
+]
